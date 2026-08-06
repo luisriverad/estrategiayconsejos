@@ -2,11 +2,15 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import { FICHAS, DOCS } from './lib/buscador'
 import { AppCtx } from './contexto'
 import Temario from './components/Temario'
+import Historial from './components/Historial'
 import VistaBuscar from './components/VistaBuscar'
 import VistaFicha from './components/VistaFicha'
 import VistaChat from './components/VistaChat'
 import VistaArsenal from './components/VistaArsenal'
 import ModalIA from './components/ModalIA'
+import ModalMemoria from './components/ModalMemoria'
+import { listaChats, borrarChat, nuevoId } from './lib/chats'
+import { leerMemoria, guardarMemoria } from './lib/memoria'
 
 /** La key del .env.local es el valor por defecto; el modal puede sobreescribirla en memoria. */
 const KEY_ENV = import.meta.env.VITE_ANTHROPIC_API_KEY || ''
@@ -20,7 +24,34 @@ export default function App() {
   const [apiKey, setApiKey] = useState(KEY_ENV)
   const [modelo, setModelo] = useState(MODELO_ENV)
   const [ajustes, setAjustes] = useState(false)
+  const [chats, setChats] = useState(() => listaChats())
+  const [chatId, setChatId] = useState(() => nuevoId())
+  const [pdf, setPdf] = useState(null)
+  const [memoria, setMemoria] = useState(() => leerMemoria())
+  const [verMemoria, setVerMemoria] = useState(false)
   const scrollRef = useRef(null)
+
+  /** El chat avisa al guardar; aquí solo se relee el índice de conversaciones. */
+  const refrescarChats = useCallback(() => setChats(listaChats()), [])
+
+  const nuevoChat = useCallback(() => {
+    setChatId(nuevoId())
+    setVista('chat')
+  }, [])
+
+  const abrirChat = useCallback((id) => {
+    setChatId(id)
+    setVista('chat')
+  }, [])
+
+  const eliminarChat = useCallback(
+    (id) => {
+      borrarChat(id)
+      setChats(listaChats())
+      if (id === chatId) setChatId(nuevoId())
+    },
+    [chatId]
+  )
 
   const abrirFicha = useCallback((id) => {
     setFichaId(id)
@@ -33,7 +64,16 @@ export default function App() {
     setVista('buscar')
   }, [])
 
-  const ctx = useMemo(() => ({ abrirFicha, buscarTexto }), [abrirFicha, buscarTexto])
+  /** Salta al PDF de origen abierto en la página exacta. */
+  const abrirPdf = useCallback((doc, pagina) => {
+    setPdf({ doc, pagina, k: Date.now() })
+    setVista('arsenal')
+  }, [])
+
+  const ctx = useMemo(
+    () => ({ abrirFicha, buscarTexto, abrirPdf }),
+    [abrirFicha, buscarTexto, abrirPdf]
+  )
 
   const aplicarFiltro = (f) => {
     setFiltro(f)
@@ -54,8 +94,18 @@ export default function App() {
             </p>
           </div>
         </div>
-        <div className="navtitle">Índice operativo</div>
-        <Temario fichaActiva={fichaId} />
+        <Historial
+          chats={chats}
+          chatActivo={chatId}
+          onAbrir={abrirChat}
+          onNuevo={nuevoChat}
+          onBorrar={eliminarChat}
+        />
+
+        <div className="indice">
+          <div className="navtitle">Índice operativo</div>
+          <Temario fichaActiva={fichaId} />
+        </div>
       </aside>
 
       <main>
@@ -86,7 +136,7 @@ export default function App() {
         </div>
 
         <div className={`view arsenal ${vista === 'arsenal' ? 'on' : ''}`}>
-          <VistaArsenal />
+          <VistaArsenal objetivo={pdf} />
         </div>
 
         <div className={`view ${vista === 'ficha' ? 'on' : ''}`} ref={scrollRef}>
@@ -94,9 +144,29 @@ export default function App() {
         </div>
 
         <div className={`view chat ${vista === 'chat' ? 'on' : ''}`}>
-          <VistaChat apiKey={apiKey} modelo={modelo} onAbrirAjustes={() => setAjustes(true)} />
+          <VistaChat
+            key={chatId}
+            chatId={chatId}
+            onGuardado={refrescarChats}
+            apiKey={apiKey}
+            modelo={modelo}
+            onAbrirAjustes={() => setAjustes(true)}
+            onAbrirMemoria={() => setVerMemoria(true)}
+            memoria={memoria}
+            setMemoria={setMemoria}
+          />
         </div>
       </main>
+
+      <ModalMemoria
+        abierto={verMemoria}
+        datos={memoria}
+        onGuardar={(datos) => {
+          setMemoria(guardarMemoria(datos))
+          setVerMemoria(false)
+        }}
+        onCerrar={() => setVerMemoria(false)}
+      />
 
       <ModalIA
         abierto={ajustes}

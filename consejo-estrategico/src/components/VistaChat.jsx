@@ -1,15 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { FICHAS, DOCS, buscar } from '../lib/buscador'
+import { FICHAS, buscar } from '../lib/buscador'
 import { cursoDeAccion } from '../lib/curso'
 import { preguntarIA, aBloques } from '../lib/anthropic'
 import Cita from './Cita'
-
-const SUGERENCIAS = [
-  'Mi socio quiere cambiar el reparto de utilidades y me presiona para firmar esta semana',
-  'Un cliente grande me pide descuento amenazando con irse',
-  'Mi jefe presentó mi trabajo como suyo frente al comité',
-  'Tengo que decidir si confronto a alguien del equipo o lo dejo pasar',
-]
+import { leerChat, guardarChat } from '../lib/chats'
+import { actualizarMemoria } from '../lib/memoria'
 
 /** Respuesta sin IA: busca en las fichas y arma el curso de acción. */
 function respuestaLocal(pregunta, historial) {
@@ -105,11 +100,14 @@ function RespuestaIA({ bloques }) {
   })
 }
 
-export default function VistaChat({ apiKey, modelo, onAbrirAjustes }) {
-  const [mensajes, setMensajes] = useState([])
+export default function VistaChat({ chatId, onGuardado, apiKey, modelo, onAbrirAjustes, onAbrirMemoria, memoria, setMemoria }) {
+  // El componente se remonta con key={chatId}, así que basta con leer el chat
+  // guardado en el estado inicial: no hace falta sincronizarlo después.
+  const guardado = useRef(leerChat(chatId)).current
+  const [mensajes, setMensajes] = useState(() => guardado?.mensajes || [])
   const [texto, setTexto] = useState('')
   const [ocupado, setOcupado] = useState(false)
-  const historial = useRef([])
+  const historial = useRef(guardado?.historial || [])
   const finRef = useRef(null)
   const taRef = useRef(null)
 
@@ -122,23 +120,42 @@ export default function VistaChat({ apiKey, modelo, onAbrirAjustes }) {
     if (!q || ocupado) return
     setTexto('')
     if (taRef.current) taRef.current.style.height = 'auto'
-    setMensajes((m) => [...m, { rol: 'user', texto: q }])
+    const conReporte = [...mensajes, { rol: 'user', texto: q }]
+    setMensajes(conReporte)
     setOcupado(true)
 
+    let respuesta
     if (apiKey) {
       try {
-        const t = await preguntarIA({ apiKey, modelo, pregunta: q, historial: historial.current })
+        const t = await preguntarIA({
+          apiKey,
+          modelo,
+          pregunta: q,
+          historial: historial.current,
+          memoria,
+        })
         historial.current.push({ q, a: t })
-        setMensajes((m) => [...m, { rol: 'ia', bloques: aBloques(t) }])
+        respuesta = { rol: 'ia', bloques: aBloques(t) }
+        // La destilación va aparte y sin bloquear: si falla, el chat ni se entera.
+        actualizarMemoria({ apiKey, pregunta: q, respuesta: t }).then(setMemoria)
       } catch (e) {
         historial.current.push({ q, a: '(error)' })
-        setMensajes((m) => [...m, { rol: 'ia', error: e.message, local: respuestaLocal(q, historial.current) }])
+        respuesta = { rol: 'ia', error: e.message, local: respuestaLocal(q, historial.current) }
       }
     } else {
       historial.current.push({ q, a: '(local)' })
-      setMensajes((m) => [...m, { rol: 'ia', local: respuestaLocal(q, historial.current) }])
+      respuesta = { rol: 'ia', local: respuestaLocal(q, historial.current) }
     }
+
+    const completo = [...conReporte, respuesta]
+    setMensajes(completo)
     setOcupado(false)
+
+    // Se persiste con la conversación ya cerrada, no a medias.
+    guardarChat({ id: chatId, mensajes: completo, historial: historial.current })
+    onGuardado?.()
+    // Listo para la repregunta: el cursor vuelve solo a la consola.
+    taRef.current?.focus()
   }
 
   return (
@@ -173,6 +190,9 @@ export default function VistaChat({ apiKey, modelo, onAbrirAjustes }) {
         </div>
         <div className="chatfoot">
           <span className={`modepill ${apiKey ? 'ia' : ''}`}>{apiKey ? 'IA conectada' : 'Modo local'}</span>
+          <button className="mempill" onClick={onAbrirMemoria} title="Ver y editar lo que el consejero recuerda de ti">
+            Memoria · {memoria.length}
+          </button>
           <span>
             {apiKey ? `${modelo} · razona sobre los 11 libros` : `Responde buscando en las ${FICHAS.length} páginas`}
           </span>
@@ -182,28 +202,6 @@ export default function VistaChat({ apiKey, modelo, onAbrirAjustes }) {
 
       <div className="msgs">
         <div className="msgw">
-          {mensajes.length === 0 && (
-            <div className="msg a">
-              <div className="av">HQ</div>
-              <div className="bub">
-                <p>
-                  Reporta la situación y te devuelvo el curso de acción, citando el documento y la
-                  página exacta. Opero sobre las <b>{FICHAS.length} páginas</b> de tus {DOCS.length} documentos.
-                </p>
-                <p className="pie">
-                  Entre más concreto sea el reporte —quién, dónde, qué se dijo— mejor es el plan.
-                </p>
-                <div className="suggs">
-                  {SUGERENCIAS.map((s) => (
-                    <button key={s} onClick={() => enviar(s)}>
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
           {mensajes.map((m, i) => (
             <div className={`msg ${m.rol === 'user' ? 'u' : 'a'}`} key={i}>
               <div className="av">{m.rol === 'user' ? 'TÚ' : 'HQ'}</div>
@@ -240,6 +238,17 @@ export default function VistaChat({ apiKey, modelo, onAbrirAjustes }) {
                   <i />
                 </span>
               </div>
+            </div>
+          )}
+          {mensajes.length > 0 && !ocupado && (
+            <div className="continuar">
+              <button onClick={() => taRef.current?.focus()}>
+                ↑ Seguir afinando este caso
+              </button>
+              <span>
+                El consejero conserva el hilo: pregunta por un paso concreto, dile qué respondió la
+                otra parte o pídele que reescriba una frase.
+              </span>
             </div>
           )}
           <div ref={finRef} />

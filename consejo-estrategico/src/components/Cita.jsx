@@ -13,9 +13,22 @@ export default function Cita({ ficha, doc, pagina, id }) {
   const _pag = ficha ? ficha.pagina : pagina
   const etiqueta = `${abrev(_doc)} · p.${_pag}`
 
-  if (!_id) return <span className="cita sin-enlace">{etiqueta}</span>
+  if (!_id)
+    return (
+      <span
+        className="cita sin-enlace"
+        title={`Sin enlace: la página ${_pag} de «${_doc}» no existe en el corpus, así que el modelo la citó de más. No es clicable.`}
+      >
+        {etiqueta}
+      </span>
+    )
   return (
-    <button type="button" className="cita" onClick={() => abrirFicha(_id)}>
+    <button
+      type="button"
+      className="cita"
+      title={`Abrir «${_doc}», página ${_pag}`}
+      onClick={() => abrirFicha(_id)}
+    >
       {etiqueta}
     </button>
   )

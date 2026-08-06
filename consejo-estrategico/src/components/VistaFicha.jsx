@@ -6,7 +6,7 @@ import { useApp } from '../contexto'
  * el contenido de una página del PDF, rearmado y con la ortografía corregida.
  */
 export default function VistaFicha({ id, setFiltro }) {
-  const { abrirFicha, buscarTexto } = useApp()
+  const { abrirFicha, buscarTexto, abrirPdf } = useApp()
   const f = porId.get(id)
   if (!f) return null
 
@@ -33,6 +33,9 @@ export default function VistaFicha({ id, setFiltro }) {
         <div className="pgtag">
           <b>{f.pagina}</b>
           <span>página</span>
+          <button className="pgtag-pdf" onClick={() => abrirPdf(f.doc, f.pagina)}>
+            Ver en el PDF
+          </button>
         </div>
         <div className="kicker">{abrev(f.docTitulo)}</div>
         <h1>{f.titulo}</h1>

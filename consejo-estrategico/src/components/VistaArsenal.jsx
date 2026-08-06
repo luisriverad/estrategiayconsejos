@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { FICHAS, DOCS, TEMAS } from '../lib/buscador'
 import { useApp } from '../contexto'
 
@@ -14,7 +14,7 @@ function primeraFicha(docId) {
   return FICHAS.filter((f) => f.doc === docId).sort((a, b) => a.pagina - b.pagina)[0]
 }
 
-function Lector({ doc, onCerrar }) {
+function Lector({ doc, pagina, onCerrar }) {
   const { abrirFicha } = useApp()
   const f0 = primeraFicha(doc.id)
   return (
@@ -41,16 +41,30 @@ function Lector({ doc, onCerrar }) {
           </a>
         </div>
       </div>
-      <iframe className="lector-pdf" src={`${ruta(doc)}#view=FitH`} title={doc.titulo} />
+      <iframe
+        className="lector-pdf"
+        src={`${ruta(doc)}#page=${pagina || 1}&view=FitH`}
+        title={doc.titulo}
+      />
     </div>
   )
 }
 
-export default function VistaArsenal() {
+export default function VistaArsenal({ objetivo }) {
   const [abierto, setAbierto] = useState(null)
+  const [pagina, setPagina] = useState(1)
+
+  // `objetivo.k` es una marca de tiempo: permite reabrir el mismo documento en
+  // otra página, o volver a él después de haber cerrado el lector.
+  useEffect(() => {
+    if (!objetivo) return
+    setAbierto(objetivo.doc)
+    setPagina(objetivo.pagina || 1)
+  }, [objetivo])
+
   const doc = abierto ? DOCS.find((d) => d.id === abierto) : null
 
-  if (doc) return <Lector doc={doc} onCerrar={() => setAbierto(null)} />
+  if (doc) return <Lector doc={doc} pagina={pagina} onCerrar={() => setAbierto(null)} />
 
   const totalPags = DOCS.reduce((a, b) => a + b.n, 0)
 
@@ -71,7 +85,14 @@ export default function VistaArsenal() {
             <h3>{tema}</h3>
             <div className="ars-grid">
               {ds.map((d) => (
-                <button className="ars-card" key={d.id} onClick={() => setAbierto(d.id)}>
+                <button
+                  className="ars-card"
+                  key={d.id}
+                  onClick={() => {
+                    setPagina(1)
+                    setAbierto(d.id)
+                  }}
+                >
                   <span className="ars-ic" aria-hidden="true">
                     PDF
                   </span>

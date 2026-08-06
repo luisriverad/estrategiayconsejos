@@ -1,4 +1,5 @@
 import { FICHAS } from './buscador'
+import { bloqueMemoria } from './memoria'
 import { buscar } from './buscador'
 
 /**
@@ -55,10 +56,12 @@ export function contexto(pregunta, historial = []) {
  * Pregunta al modelo. Lanza Error con mensaje legible si la API falla.
  * @param {{apiKey:string, modelo:string, pregunta:string, historial:Array}} opts
  */
-export async function preguntarIA({ apiKey, modelo, pregunta, historial = [] }) {
+export async function preguntarIA({ apiKey, modelo, pregunta, historial = [], memoria = [] }) {
   if (!apiKey) throw new Error('Falta la API key.')
+  // 8 y no 4: afinar un caso toma varias vueltas y con 4 el modelo empezaba a
+  // olvidar lo acordado al principio del hilo.
   const mensajes = historial
-    .slice(-4)
+    .slice(-8)
     .flatMap((h) => [
       { role: 'user', content: h.q },
       { role: 'assistant', content: h.a },
@@ -84,7 +87,7 @@ export async function preguntarIA({ apiKey, modelo, pregunta, historial = [] }) 
       model: modelo,
       max_tokens: 8000,
       output_config: { effort: 'medium' },
-      system: SISTEMA,
+      system: SISTEMA + bloqueMemoria(memoria),
       messages: mensajes,
     }),
   })
