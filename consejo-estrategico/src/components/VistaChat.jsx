@@ -5,6 +5,7 @@ import { preguntarIA, aBloques } from '../lib/anthropic'
 import Cita from './Cita'
 import { leerChat, guardarChat } from '../lib/chats'
 import { actualizarMemoria } from '../lib/memoria'
+import { hayIA } from '../lib/api'
 
 /** Respuesta sin IA: busca en las fichas y arma el curso de acción. */
 function respuestaLocal(pregunta, historial) {
@@ -125,7 +126,7 @@ export default function VistaChat({ chatId, onGuardado, apiKey, modelo, onAbrirA
     setOcupado(true)
 
     let respuesta
-    if (apiKey) {
+    if (hayIA(apiKey)) {
       try {
         const t = await preguntarIA({
           apiKey,
@@ -189,12 +190,12 @@ export default function VistaChat({ chatId, onGuardado, apiKey, modelo, onAbrirA
           </button>
         </div>
         <div className="chatfoot">
-          <span className={`modepill ${apiKey ? 'ia' : ''}`}>{apiKey ? 'IA conectada' : 'Modo local'}</span>
+          <span className={`modepill ${hayIA(apiKey) ? 'ia' : ''}`}>{hayIA(apiKey) ? 'IA conectada' : 'Modo local'}</span>
           <button className="mempill" onClick={onAbrirMemoria} title="Ver y editar lo que el consejero recuerda de ti">
             Memoria · {memoria.length}
           </button>
           <span>
-            {apiKey ? `${modelo} · razona sobre los 11 libros` : `Responde buscando en las ${FICHAS.length} páginas`}
+            {hayIA(apiKey) ? `${modelo} · razona sobre los 11 libros` : `Responde buscando en las ${FICHAS.length} páginas`}
           </span>
           <button onClick={onAbrirAjustes}>{apiKey ? 'Ajustes de IA' : 'Conectar IA'}</button>
         </div>
@@ -232,7 +233,7 @@ export default function VistaChat({ chatId, onGuardado, apiKey, modelo, onAbrirA
               <div className="av">HQ</div>
               <div className="bub">
                 <span className="thinking">
-                  {apiKey ? 'Analizando' : 'Rastreando fuentes'}
+                  {hayIA(apiKey) ? 'Analizando' : 'Rastreando fuentes'}
                   <i />
                   <i />
                   <i />

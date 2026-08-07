@@ -9,6 +9,8 @@
  * La extracción corre en Haiku 4.5: es una tarea mecánica, y así el presupuesto
  * del modelo grande se queda íntegro para el consejo.
  */
+import { hayIA, llamarModelo } from './api'
+
 const CLAVE = 'sac.memoria.v1'
 const MAX_DATOS = 25
 const MAX_LARGO = 200
@@ -68,18 +70,11 @@ Cada dato: una línea, en tercera persona, concreto. Si no hay nada nuevo, lista
  */
 export async function actualizarMemoria({ apiKey, pregunta, respuesta }) {
   const actual = leerMemoria()
-  if (!apiKey) return actual
+  if (!hayIA(apiKey)) return actual
 
   try {
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
+    const j = await llamarModelo(
+      {
         model: MODELO_EXTRACCION,
         max_tokens: 700,
         system: INSTRUCCION,
@@ -100,11 +95,9 @@ export async function actualizarMemoria({ apiKey, pregunta, respuesta }) {
             content: `LISTA ACTUAL:\n${actual.map((d) => '- ' + d).join('\n') || '(vacía)'}\n\nLO QUE REPORTÓ:\n${pregunta}\n\nLO QUE SE LE ACONSEJÓ:\n${respuesta.slice(0, 2500)}`,
           },
         ],
-      }),
-    })
-    if (!r.ok) return actual
-
-    const j = await r.json()
+      },
+      apiKey
+    )
     if (j.stop_reason === 'refusal') return actual
     const texto = (j.content || []).find((c) => c.type === 'text')?.text
     const nuevos = JSON.parse(texto).datos || []

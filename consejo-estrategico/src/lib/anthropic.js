@@ -1,5 +1,6 @@
 import { FICHAS } from './buscador'
 import { bloqueMemoria } from './memoria'
+import { hayIA, llamarModelo } from './api'
 import { buscar } from './buscador'
 
 /**
@@ -57,7 +58,7 @@ export function contexto(pregunta, historial = []) {
  * @param {{apiKey:string, modelo:string, pregunta:string, historial:Array}} opts
  */
 export async function preguntarIA({ apiKey, modelo, pregunta, historial = [], memoria = [] }) {
-  if (!apiKey) throw new Error('Falta la API key.')
+  if (!hayIA(apiKey)) throw new Error('No hay forma de consultar al modelo: falta la API key.')
   // 8 y no 4: afinar un caso toma varias vueltas y con 4 el modelo empezaba a
   // olvidar lo acordado al principio del hilo.
   const mensajes = historial
@@ -71,32 +72,20 @@ export async function preguntarIA({ apiKey, modelo, pregunta, historial = [], me
     content: `SITUACIÓN:\n${pregunta}\n\nEXTRACTOS RELEVANTES DE LOS LIBROS:\n${contexto(pregunta, historial)}`,
   })
 
-  const r = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
-    },
-    // En Opus 5 el razonamiento viene activado de fábrica y max_tokens acota
-    // razonamiento + respuesta juntos: por eso el margen es amplio aunque la
-    // respuesta visible no pase de 450 palabras. `effort` regula qué tan hondo
-    // piensa: medium da buen equilibrio latencia/calidad para un chat.
-    body: JSON.stringify({
+  // En Opus 5 el razonamiento viene activado de fábrica y max_tokens acota
+  // razonamiento + respuesta juntos: por eso el margen es amplio aunque la
+  // respuesta visible no pase de 450 palabras. `effort` regula qué tan hondo
+  // piensa: medium da buen equilibrio latencia/calidad para un chat.
+  const j = await llamarModelo(
+    {
       model: modelo,
       max_tokens: 8000,
       output_config: { effort: 'medium' },
       system: SISTEMA + bloqueMemoria(memoria),
       messages: mensajes,
-    }),
-  })
-
-  if (!r.ok) {
-    const t = await r.text()
-    throw new Error(`La API respondió ${r.status}: ${t.slice(0, 240)}`)
-  }
-  const j = await r.json()
+    },
+    apiKey
+  )
 
   // Los clasificadores de seguridad pueden declinar con HTTP 200 y contenido
   // vacío. Sin esto la respuesta llegaría en blanco y sin explicación.

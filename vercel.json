@@ -1,0 +1,8 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "npm --prefix consejo-estrategico ci",
+  "buildCommand": "npm --prefix consejo-estrategico run build",
+  "outputDirectory": "consejo-estrategico/dist",
+  "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }]
+}

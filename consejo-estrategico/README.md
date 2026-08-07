@@ -17,19 +17,48 @@ Abre <http://localhost:5173>. Para compilar: `npm run build` y luego `npm run pr
 
 ---
 
+## Desplegar en Vercel
+
+La app vive en el subdirectorio `consejo-estrategico/`, así que el `vercel.json`
+de la raíz le dice a Vercel dónde construir. No hay que tocar el "Root Directory"
+en el panel.
+
+En **Settings → Environment Variables** del proyecto hay que poner dos:
+
+| Variable | Valor | Por qué |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | tu key `sk-ant-...` | **Sin** el prefijo `VITE_`. Así vive solo en el servidor. |
+| `VITE_PROXY` | `1` | Le dice al front que hable con `/api/chat` en vez de con Anthropic directo. |
+
+> ⚠️ **Nunca pongas `VITE_ANTHROPIC_API_KEY` en Vercel.** Todo lo que lleva el
+> prefijo `VITE_` queda incrustado en el JavaScript público: cualquiera que abra
+> el sitio puede leer la key y gastarte los créditos. Ese prefijo es solo para
+> desarrollo local, donde el bundle no sale de tu máquina.
+
+El despliegue es público: quien tenga la URL puede usar tu proxy. La función
+limita modelos, tope de tokens y exige mismo origen, pero si quieres cerrarlo de
+verdad, activa **Deployment Protection → Vercel Authentication** en el proyecto.
+
+Los 11 PDF del Arsenal pesan ~93 MB y van dentro del repo. Si el despliegue
+falla por tamaño, sácalos del build (bórralos de `public/pdf/` y súbelos a un
+almacenamiento aparte); la app sigue funcionando, solo el Arsenal queda sin
+archivos.
+
+---
+
 ## ⚠️ La API key
 
 El archivo **`.env.local` viene incluido con la key real** para que el chat funcione desde el primer `npm run dev`.
 
 ```
 VITE_ANTHROPIC_API_KEY=sk-ant-...
-VITE_ANTHROPIC_MODEL=claude-sonnet-5
+VITE_ANTHROPIC_MODEL=claude-opus-5
 ```
 
 Dos cosas importantes:
 
 1. `.env.local` está en `.gitignore`, así que **no se sube al repo**. Verifícalo con `git status` antes de tu primer commit.
-2. Vite **inlinea las variables `VITE_` en el bundle**. Eso significa que si publicas la carpeta `dist/` en un servidor, la key queda visible para cualquiera que abra las herramientas de desarrollo. Para uso local está bien; **para publicar, mueve la llamada a un backend** y deja la key en el servidor. El punto exacto a cambiar es `preguntarIA()` en `src/lib/anthropic.js`.
+2. Vite **inlinea las variables `VITE_` en el bundle**: si publicas `dist/` construido con esta variable, la key queda a la vista de cualquiera. Para eso existe el proxy: en un despliegue no se usa `VITE_ANTHROPIC_API_KEY` sino `ANTHROPIC_API_KEY` del lado del servidor (ver *Desplegar en Vercel* arriba). El front elige camino solo, en `src/lib/api.js`.
 
 Si la key se filtra: `console.anthropic.com` → API Keys → revocar y generar otra.
 
