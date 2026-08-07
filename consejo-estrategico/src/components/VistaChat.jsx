@@ -197,7 +197,9 @@ export default function VistaChat({ chatId, onGuardado, apiKey, modelo, onAbrirA
           <span>
             {hayIA(apiKey) ? `${modelo} · razona sobre los 11 libros` : `Responde buscando en las ${FICHAS.length} páginas`}
           </span>
-          <button onClick={onAbrirAjustes}>{apiKey ? 'Ajustes de IA' : 'Conectar IA'}</button>
+          {/* Misma fuente de verdad que la píldora de la izquierda: si hay IA por
+              el camino que sea, aquí no hay nada que "conectar". */}
+          <button onClick={onAbrirAjustes}>{hayIA(apiKey) ? 'Cambiar modelo' : 'Conectar IA'}</button>
         </div>
       </div>
 

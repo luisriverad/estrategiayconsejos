@@ -7,7 +7,7 @@
  *   guarda la key del lado del servidor. En un sitio público esta es la única
  *   forma segura: una key con prefijo VITE_ queda a la vista en el bundle.
  */
-const PROXY = import.meta.env.VITE_PROXY === '1'
+export const PROXY = import.meta.env.VITE_PROXY === '1'
 
 /** ¿Se puede consultar al modelo, por el camino que sea? */
 export const hayIA = (apiKey) => Boolean(apiKey) || PROXY
